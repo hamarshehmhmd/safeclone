@@ -174,9 +174,18 @@ def split_requests(rep):
     return expected, other
 
 
+def risky_connects(rep):
+    """inet connects, plus unix sockets that would hand over credentials (agents, docker)."""
+    out = []
+    for c in rep.get("connects", []):
+        if c["family"] != "unix" or any(k in c["dest"] for k in ("agent", "docker.sock", "keyring", "gpg")):
+            out.append(c)
+    return out
+
+
 def suspicious(rep):
     _exp, other = split_requests(rep)
-    return bool(rep.get("canaries") or other or rep.get("connects"))
+    return bool(rep.get("canaries") or other or risky_connects(rep))
 
 
 def render_run(rep, o):
@@ -204,9 +213,12 @@ def render_run(rep, o):
     if expected:
         hosts = sorted({_host(r["dest"]) for r in expected})
         lines.append(o.c("2", "package registry requests (expected, blocked offline): %d to %s" % (len(expected), ", ".join(hosts))))
-    for c in rep.get("connects", [])[:20]:
+    risky = risky_connects(rep)
+    if risky:
         bad = True
-        lines.append("  %s %s" % (o.c("33", "connect"), c["dest"]))
+        lines.append(o.c("1;31", "direct connect() attempts (strace):"))
+        for c in risky[:20]:
+            lines.append("  %s %s" % (o.c("31", "%-7s" % c["family"]), c["dest"]))
     execs = rep.get("execs", [])
     if execs:
         progs = []
@@ -228,7 +240,8 @@ def cmd_run(a, o):
     path, kind, notes, tmp = _acquire(a.target, None)
     cmd = a.cmd
     try:
-        rep = sandbox.run(path, cmd, net=a.net, trace=a.trace, extra_ro=a.ro, timeout=a.timeout, keep=a.keep)
+        rep = sandbox.run(path, cmd, net=a.net, trace=a.trace, extra_ro=a.ro, timeout=a.timeout, keep=a.keep,
+                          quiet_stdout=a.json)
     finally:
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)

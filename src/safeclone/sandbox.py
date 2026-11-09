@@ -25,7 +25,7 @@ def _pkg_parent():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def build_argv(work, cmd, report_fd, net=False, trace=None, extra_ro=(), timeout=300, python=None):
+def build_argv(work, cmd, report_fd, net=False, trace=None, extra_ro=(), timeout=300, python=None, quiet_stdout=False):
     python = python or os.path.realpath(sys.executable)
     argv = ["bwrap", "--die-with-parent", "--new-session", "--unshare-user", "--unshare-ipc", "--unshare-pid",
             "--unshare-uts", "--unshare-cgroup-try", "--hostname", "sandbox", "--clearenv"]
@@ -52,6 +52,8 @@ def build_argv(work, cmd, report_fd, net=False, trace=None, extra_ro=(), timeout
            "--report-fd", str(report_fd), "--home", "/home/dev", "--timeout", str(timeout)]
     if net:
         sup.append("--net")
+    if quiet_stdout:
+        sup.append("--stdout-to-stderr")
     if trace:
         sup += ["--trace", trace]
     return argv + ["--"] + sup + ["--"] + list(cmd)
@@ -83,7 +85,7 @@ def diff(before, after):
     return {"created": created, "modified": changed, "deleted": deleted}
 
 
-def run(repo, cmd, net=False, trace="auto", extra_ro=(), timeout=300, keep=False):
+def run(repo, cmd, net=False, trace="auto", extra_ro=(), timeout=300, keep=False, quiet_stdout=False):
     if not available():
         raise SandboxError("sandbox needs Linux + bubblewrap (apt install bubblewrap). "
                            "On macOS, run 'safeclone scan/open' and use a VM or devcontainer for execution.")
@@ -99,7 +101,7 @@ def run(repo, cmd, net=False, trace="auto", extra_ro=(), timeout=300, keep=False
     elif trace in ("off", "", None):
         trace = None
     r, w = os.pipe()
-    argv = build_argv(work, cmd, w, net=net, trace=trace, extra_ro=extra_ro, timeout=timeout)
+    argv = build_argv(work, cmd, w, net=net, trace=trace, extra_ro=extra_ro, timeout=timeout, quiet_stdout=quiet_stdout)
     p = subprocess.Popen(argv, pass_fds=(w,), stdin=subprocess.DEVNULL)
     os.close(w)
     with os.fdopen(r) as fh:

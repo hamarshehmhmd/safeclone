@@ -156,6 +156,7 @@ def main(argv=None):
     ap.add_argument("--net", action="store_true")
     ap.add_argument("--trace", default="")
     ap.add_argument("--timeout", type=float, default=300)
+    ap.add_argument("--stdout-to-stderr", action="store_true")
     ap.add_argument("cmd", nargs=argparse.REMAINDER)
     a = ap.parse_args(argv)
     cmd = a.cmd[1:] if a.cmd and a.cmd[0] == "--" else a.cmd
@@ -183,7 +184,8 @@ def main(argv=None):
     t0 = time.time()
     timed_out = False
     try:
-        p = subprocess.Popen(run, env=env, close_fds=True, stdin=subprocess.DEVNULL)
+        p = subprocess.Popen(run, env=env, close_fds=True, stdin=subprocess.DEVNULL,
+                             stdout=2 if a.stdout_to_stderr else None)
         try:
             rc = p.wait(timeout=a.timeout)
         except subprocess.TimeoutExpired:

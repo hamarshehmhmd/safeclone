@@ -97,6 +97,11 @@ def test_build_argv_isolation(tmp_path):
 def test_suspicious_classification():
     rep = {"canaries": [], "connects": [], "proxy_requests": [{"method": "CONNECT", "dest": "registry.npmjs.org:443"}]}
     assert not cli.suspicious(rep)
+    rep["connects"] = [{"family": "unix", "dest": "/var/run/nscd/socket"}]
+    assert not cli.suspicious(rep)
+    rep["connects"].append({"family": "unix", "dest": "/tmp/ssh-XXXX/agent.123"})
+    assert cli.suspicious(rep)
+    rep["connects"] = []
     rep["proxy_requests"].append({"method": "GET", "dest": "http://203.0.113.7:1224/x"})
     assert cli.suspicious(rep)
 
@@ -117,6 +122,14 @@ def test_sandbox_catches_takehome(takehome, capsys):
     assert "~/.ssh/id_rsa" in out and "~/.aws/credentials" in out
     assert "203.0.113.7:1224" in out and "api.npoint.io:443" in out
     assert "verdict: SUSPICIOUS" in out
+
+
+@needs_bwrap
+def test_sandbox_json_stdout_is_pure(takehome, capfd):
+    rc = cli.main(["run", takehome, "--json", "--trace", "off", "--", "sh", "scripts/setup.sh"])
+    out = capfd.readouterr()
+    rep = json.loads(out.out)
+    assert rc == 0 and "setup ok" in out.err and rep["exit_code"] == 0
 
 
 @needs_bwrap
