@@ -1,0 +1,8 @@
+demo/build/
+demo.mp4
+build/
+dist/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+examples/*.zip

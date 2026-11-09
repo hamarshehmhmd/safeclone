@@ -1,0 +1,70 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - os: ubuntu-22.04
+            python: "3.9"
+          - os: macos-latest
+            python: "3.13"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install . pytest
+      - run: python -m pytest -q -rs
+
+  sandbox:
+    name: sandbox e2e (bubblewrap + strace)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: install bubblewrap + strace
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap strace
+          # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - run: python -m pip install . pytest
+      - run: python -m pytest -q -rs tests/test_cli_sandbox.py
+      - name: catch the inert take-home end to end
+        run: |
+          python examples/make_takehome.py /tmp/takehome.zip
+          set +e
+          safeclone scan /tmp/takehome.zip; test $? -eq 1 || exit 1
+          safeclone run /tmp/takehome.zip --fail-on-suspicious --json -- sh scripts/setup.sh > /tmp/run.json
+          rc=$?
+          set -e
+          cat /tmp/run.json
+          test "$rc" -eq 1
+          python - <<'PY'
+          import json
+          r = json.load(open("/tmp/run.json"))
+          assert {"~/.ssh/id_rsa", "~/.aws/credentials"} <= {c["path"] for c in r["canaries"]}, r["canaries"]
+          assert any("203.0.113.7:1224" in p["dest"] for p in r["proxy_requests"]), r["proxy_requests"]
+          assert r["traced"] and any(e["path"].endswith("/curl") for e in r["execs"]), r["execs"][:5]
+          PY
+
+  install-script:
+    name: one-line install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: SAFECLONE_REF=${{ github.sha }} sh install.sh
+      - run: |
+          export PATH="$HOME/.local/bin:${PIPX_BIN_DIR:-/opt/pipx_bin}:$PATH"
+          safeclone --version
+          python3 examples/make_takehome.py /tmp/t.zip
+          safeclone scan /tmp/t.zip --fail-on none

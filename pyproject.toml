@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "safeclone"
+version = "0.1.0"
+description = "Open stranger repos (interview take-homes, PoCs, 'review my project') without handing over your laptop: find every auto-exec trap, disarm it, run installs in a credential-free sandbox with decoy keys."
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{name = "Mohammad Hamarsheh"}]
+requires-python = ">=3.9"
+dependencies = []
+keywords = ["security", "supply-chain", "contagious-interview", "malware", "vscode", "git-hooks",
+            "sandbox", "bubblewrap", "developer-tools", "take-home", "beavertail"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+  "Topic :: Software Development :: Version Control :: Git",
+]
+
+[project.urls]
+Homepage = "https://github.com/hamarshehmhmd/safeclone"
+Issues = "https://github.com/hamarshehmhmd/safeclone/issues"
+
+[project.scripts]
+safeclone = "safeclone.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
